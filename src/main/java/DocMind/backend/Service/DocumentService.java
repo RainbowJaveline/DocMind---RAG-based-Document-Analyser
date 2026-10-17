@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,7 +27,7 @@ public class DocumentService {
     private final IngestionService ingestionService;
     private final DocumentMetaDataRepo repo;
     private static final Logger logger = LoggerFactory.getLogger(DocumentService.class);
-    private JdbcTemplate jdbcTemplate;
+    private final JdbcTemplate jdbcTemplate;
 
     //Method to Upload and Parse Documents
     public DocumentResponseDTO uploadDocument(MultipartFile file){
@@ -51,11 +52,11 @@ public class DocumentService {
         Integer chunksCreated = ingestionService.ingest(saveDocumentMetaData,parseDocument);
 
         return DocumentResponseDTO.builder()
-                .id(documentMetadata.getId())
-                .fileName(documentMetadata.getFilename())
-                .fileSize(documentMetadata.getSize())
+                .id(saveDocumentMetaData.getId())
+                .fileName(saveDocumentMetaData.getFilename())
+                .fileSize(saveDocumentMetaData.getSize())
                 .chunkCreated(chunksCreated)
-                .status(documentMetadata.getStatus())
+                .status(saveDocumentMetaData.getStatus())
                 .message("Document Successfully Processed and Indexed")
                 .build();
 
@@ -105,7 +106,7 @@ public class DocumentService {
 
         //delete entries from vector_store
         try {
-            String query = "DELETE FROM vector_store WHERE metadata->>'documentId' = ?";
+            String query = "DELETE FROM vector_store_gemini WHERE metadata->>'documentId' = ?";
             int deletedCount = jdbcTemplate.update(query,id.toString());
             logger.info("Deleted {} vector for DocumentId: {}",deletedCount,id);
 
