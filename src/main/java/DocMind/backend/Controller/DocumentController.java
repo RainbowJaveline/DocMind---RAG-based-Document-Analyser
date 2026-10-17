@@ -1,0 +1,95 @@
+package DocMind.backend.Controller;
+
+import DocMind.backend.DTO.ApiResponse;
+import DocMind.backend.DTO.DocumentResponseDTO;
+import DocMind.backend.Entity.DocumentMetadata;
+import DocMind.backend.Repository.DocumentMetaDataRepo;
+import DocMind.backend.Service.DocumentService;
+import io.swagger.v3.oas.annotations.Operation;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.ai.document.Document;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
+@Controller
+@RequestMapping("/api/v1/document")
+@RequiredArgsConstructor
+public class DocumentController {
+
+    private final DocumentService documentService;
+    private final DocumentMetaDataRepo repo;
+
+    @Operation(
+            summary = "Document uploading endpoint",
+            description = "upload any multipart pdf"
+    )
+    @PostMapping(value = "/upload",consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<DocumentResponseDTO>> uploadDocument(
+            @RequestPart("file")MultipartFile file
+            ){
+        DocumentResponseDTO documentResponseDTO = documentService.uploadDocument(file);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.<DocumentResponseDTO>builder()
+                        .success(true)
+                        .message("File Uploaded Successfully")
+                        .timestamp(LocalDateTime.now())
+                        .data(DocumentResponseDTO.builder()
+                                .id(documentResponseDTO.getId())
+                                .fileName(documentResponseDTO.getFileName())
+                                .fileSize(documentResponseDTO.getFileSize())
+                                .chunkCreated(documentResponseDTO.getChunkCreated())
+                                .build())
+                        .build());
+    }
+
+    @PostMapping(value = "upload-multiple" , consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(
+            summary = "Upload and Parse Multiple Documents simultaneously",
+            description = "This API is used to Upload Multiple Documents"
+    )
+   public ResponseEntity<ApiResponse<List<DocumentResponseDTO>>> uploadMultiple(
+           @RequestParam("files") List<MultipartFile> files
+   ){
+       List<DocumentResponseDTO> responseDTOS =  documentService.uploadMultipleDocument(files);
+       return ResponseEntity.status(HttpStatus.CREATED)
+               .body(
+                       ApiResponse.<List<DocumentResponseDTO>>
+                               builder()
+                               .message("Uploaded Successfully")
+                               .success(true)
+                               .build()
+               );
+   }
+
+   //list all uploaded documents
+    @GetMapping(value = "listDocumets")
+    public ResponseEntity<ApiResponse<List<DocumentResponseDTO>>> ListDocument(){
+     List<DocumentResponseDTO> docs = documentService.getAllDocuments();
+     return ResponseEntity.status(HttpStatus.OK)
+             .body(
+                     ApiResponse.<List<DocumentResponseDTO>>builder()
+                             .build()
+             );
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<List<DocumentResponseDTO>>> DocumentById(@PathVariable UUID id){
+        DocumentResponseDTO document = documentService.getDocumentById(id);
+        return ResponseEntity.ok()
+                .body(
+                        ApiResponse.<List<DocumentResponseDTO>>builder()
+                                .build()
+                );
+    }
+}
