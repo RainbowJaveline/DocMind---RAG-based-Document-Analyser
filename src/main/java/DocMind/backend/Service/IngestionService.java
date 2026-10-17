@@ -44,6 +44,7 @@ public class IngestionService {
             if(chunks.isEmpty()){
                 saveDocumentMetaData.setStatus(DocumentStatus.FAILED);
                 saveDocumentMetaData.setErrorMessage("document cannot be Read or it is Unscannable");
+                repo.save(saveDocumentMetaData);
                 return 0;
             }
 
@@ -52,10 +53,22 @@ public class IngestionService {
             for (int i = 0; i < chunks.size(); i++) {
                 Document chunk = chunks.get(i);
                 Map<String, Object> enrichedMetaData = new HashMap<>(chunk.getMetadata());
-                enrichedMetaData.put("DocumentId : ", saveDocumentMetaData.getId().toString());
-                enrichedMetaData.put("FileName : ", saveDocumentMetaData.getFilename());
-                enrichedMetaData.put("Content-Type : ", saveDocumentMetaData.getContentType());
-                enrichedMetaData.put("ChunkIndex : ", i);
+                enrichedMetaData.put(
+                        "documentId",
+                        saveDocumentMetaData.getId().toString()
+                );
+
+                enrichedMetaData.put(
+                        "fileName",
+                        saveDocumentMetaData.getFilename()
+                );
+
+                enrichedMetaData.put(
+                        "contentType",
+                        saveDocumentMetaData.getContentType()
+                );
+
+                enrichedMetaData.put("chunkIndex", i);
                 //Preserve or calculate Page number if available
                 Object pageNumber = chunk.getMetadata().get("page_number");
                 if(pageNumber==null){
