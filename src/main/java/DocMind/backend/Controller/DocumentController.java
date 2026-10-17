@@ -92,4 +92,9 @@ public class DocumentController {
                                 .build()
                 );
     }
+
+    @GetMapping("/{id}/delete")
+    public void DeleteById( @PathVariable UUID id ){
+        documentService.deleteById(id);
+    }
 }

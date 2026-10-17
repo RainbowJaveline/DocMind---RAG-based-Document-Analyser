@@ -3,6 +3,7 @@ package DocMind.backend.Service;
 import DocMind.backend.DTO.DocumentResponseDTO;
 import DocMind.backend.Entity.DocumentMetadata;
 import DocMind.backend.Entity.DocumentStatus;
+import DocMind.backend.Exception.ResourceNotFoundException;
 import DocMind.backend.Repository.DocumentMetaDataRepo;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -89,7 +90,7 @@ public class DocumentService {
     }
 
     public DocumentResponseDTO getDocumentById(UUID id) {
-        DocumentMetadata documentId = repo.getReferenceById(id);
+        DocumentMetadata documentId = repo.findById(id).orElseThrow(()->new ResourceNotFoundException("Cannot Find the FIle"));
         return DocumentResponseDTO.builder()
                 .id(documentId.getId())
                 .status(documentId.getStatus())
@@ -97,5 +98,19 @@ public class DocumentService {
                 .chunkCreated(documentId.getTotalChunks())
                 .fileName(documentId.getFilename())
                 .build();
+    }
+
+    public void deleteById(UUID id) {
+        DocumentMetadata documentMetadata = repo.findById(id).orElseThrow(()->new ResourceNotFoundException("Cannot Find the FIle"));
+
+        //delete entries from vector_store
+        try {
+            String query = "DELETE FROM vector_store WHERE metadata->>'documentId' = ?";
+            int deletedCount = jdbcTemplate.update(query,id.toString());
+            logger.info("Deleted {} vector for DocumentId: {}",deletedCount,id);
+
+        }catch (Exception e){
+            logger.warn("Could not delete vectors from Vector Store : {}",e.getMessage());
+        }
     }
 }
