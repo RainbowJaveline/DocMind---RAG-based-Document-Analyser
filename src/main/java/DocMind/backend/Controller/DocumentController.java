@@ -5,6 +5,7 @@ import DocMind.backend.DTO.DocumentResponseDTO;
 import DocMind.backend.Entity.DocumentMetadata;
 import DocMind.backend.Repository.DocumentMetaDataRepo;
 import DocMind.backend.Service.DocumentService;
+import com.google.protobuf.Api;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -73,6 +74,9 @@ public class DocumentController {
    }
 
    //list all uploaded documents
+    @Operation(
+            summary = "Getting list of Documents available in the vector store"
+    )
     @GetMapping(value = "listDocumets")
     public ResponseEntity<ApiResponse<List<DocumentResponseDTO>>> ListDocument(){
      List<DocumentResponseDTO> docs = documentService.getAllDocuments();
@@ -83,18 +87,35 @@ public class DocumentController {
              );
     }
 
+    @Operation(
+            summary = "Fetching the document by Id"
+    )
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<List<DocumentResponseDTO>>> DocumentById(@PathVariable UUID id){
+    public ResponseEntity<ApiResponse<DocumentResponseDTO>> DocumentById(@PathVariable UUID id){
         DocumentResponseDTO document = documentService.getDocumentById(id);
         return ResponseEntity.ok()
                 .body(
-                        ApiResponse.<List<DocumentResponseDTO>>builder()
+                        ApiResponse.<DocumentResponseDTO>builder()
+                                .message("Got the File")
+                                .success(true)
+                                .data(document)
                                 .build()
                 );
     }
 
-    @GetMapping("/{id}/delete")
-    public void DeleteById( @PathVariable UUID id ){
+    @Operation(
+            summary = "Deleting document by ID"
+    )
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> DeleteById(@PathVariable UUID id ){
         documentService.deleteById(id);
+        return ResponseEntity.ok(
+                ApiResponse.<Void>builder()
+                        .message("Document Deleted Successfully")
+                        .success(true)
+                        .timestamp(LocalDateTime.now())
+                        .data(null)
+                        .build()
+        );
     }
 }
