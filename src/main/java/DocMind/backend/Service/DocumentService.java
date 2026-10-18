@@ -9,9 +9,11 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
@@ -51,13 +53,24 @@ public class DocumentService {
         //ingest and return the number of chunks
         Integer chunksCreated = ingestionService.ingest(saveDocumentMetaData,parseDocument);
 
+        logger.info(
+                "Upload response: id={}, status={}, chunks={}",
+                saveDocumentMetaData.getId(),
+                saveDocumentMetaData.getStatus(),
+                saveDocumentMetaData.getTotalChunks()
+        );
+
         return DocumentResponseDTO.builder()
                 .id(saveDocumentMetaData.getId())
                 .fileName(saveDocumentMetaData.getFilename())
                 .fileSize(saveDocumentMetaData.getSize())
                 .chunkCreated(chunksCreated)
                 .status(saveDocumentMetaData.getStatus())
-                .message("Document Successfully Processed and Indexed")
+                .message(
+                        saveDocumentMetaData.getStatus() == DocumentStatus.INDEXED
+                                ? "Document successfully processed and indexed"
+                                : saveDocumentMetaData.getErrorMessage()
+                )
                 .build();
 
     }
@@ -84,6 +97,7 @@ public class DocumentService {
                              .fileSize(docs.getSize())
                              .chunkCreated(docs.getTotalChunks())
                              .fileName(docs.getFilename())
+                             .message("File Fetched Successfully from the Database")
                              .build()
              );
          }
@@ -91,7 +105,7 @@ public class DocumentService {
     }
 
     public DocumentResponseDTO getDocumentById(UUID id) {
-        DocumentMetadata documentId = repo.findById(id).orElseThrow(()->new ResourceNotFoundException("Cannot Find the FIle"));
+        DocumentMetadata documentId = repo.findById(id).orElseThrow(()->new ResourceNotFoundException("Cannot Find the File"));
         return DocumentResponseDTO.builder()
                 .id(documentId.getId())
                 .status(documentId.getStatus())
@@ -101,17 +115,31 @@ public class DocumentService {
                 .build();
     }
 
+    @Transactional
     public void deleteById(UUID id) {
-        DocumentMetadata documentMetadata = repo.findById(id).orElseThrow(()->new ResourceNotFoundException("Cannot Find the FIle"));
 
-        //delete entries from vector_store
+        DocumentMetadata documentMetadata = repo.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Cannot find the file"));
+
+        String query = """
+            DELETE FROM vector_store_gemini
+            WHERE metadata->>'documentId' = ?
+            """;
+
         try {
-            String query = "DELETE FROM vector_store_gemini WHERE metadata->>'documentId' = ?";
-            int deletedCount = jdbcTemplate.update(query,id.toString());
-            logger.info("Deleted {} vector for DocumentId: {}",deletedCount,id);
+            int deletedCount = jdbcTemplate.update(query, id.toString());
 
-        }catch (Exception e){
-            logger.warn("Could not delete vectors from Vector Store : {}",e.getMessage());
+            logger.info("Deleted {} vectors for DocumentId: {}",
+                    deletedCount, id);
+
+            repo.delete(documentMetadata);
+
+            logger.info("Deleted document metadata for DocumentId: {}", id);
+
+        } catch (DataAccessException e) {
+            logger.error("Database operation failed while deleting document: {}", id, e);
+            throw e;
         }
     }
 }
