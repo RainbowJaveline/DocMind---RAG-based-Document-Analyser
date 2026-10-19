@@ -23,7 +23,7 @@ spring:
         api-key: ${GOOGLE_API_KEY}
         project-id: ${GOOGLE_CLOUD_PROJECT_ID}
         chat:
-          model: ${GOOGLE_CHAT_MODEL:gemini-2.5-flash}
+          model: ${GOOGLE_CHAT_MODEL:gemini-3.8-flash}
           temperature: 0.2
         embedding:
           api-key: ${GOOGLE_API_KEY}

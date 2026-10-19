@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -48,7 +49,7 @@ public class ChatController {
         );
     }
 
-    @PostMapping("/stream")
+    @PostMapping(value = "/stream" , produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "Stream real-time Q&A answers tokens using Server-Sent Events (SSE)")
     public Flux<String> streamQuestion(@Valid @RequestBody ChatRequestDTO request){
         return ragService.streamQuestionAnswer(request);

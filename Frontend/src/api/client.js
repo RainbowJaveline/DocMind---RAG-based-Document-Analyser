@@ -179,53 +179,101 @@ export async function askQuestion({
   });
 }
 
+
 /**
  * 7. Real-time Stream Chat (SSE)
  * Endpoint: POST /api/v1/chat/stream
  */
-export async function streamQuestionAnswer({
-  question,
-  documentId = null,
-  topK = 5,
-  minSimilarity = 0.0,
-}, onToken, onDone, onError) {
+export async function streamQuestionAnswer(
+  {
+    question,
+    documentId = null,
+    topK = 5,
+    minSimilarity = 0.0,
+    conversationId = null,
+  },
+  onToken,
+  onDone,
+  onError
+) {
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1/chat/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'text/event-stream, application/json, text/plain',
+        'Accept': 'text/event-stream',
       },
       body: JSON.stringify({
         question,
         documentId,
         topK,
         minSimilarity,
+        conversationId,
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`Streaming failed: ${response.statusText}`);
+      let message = `Streaming failed: ${response.status}`;
+
+      try {
+        const errorBody = await response.json();
+        message = errorBody.message || errorBody.error || message;
+      } catch (_) {}
+
+      throw new Error(message);
+    }
+
+    if (!response.body) {
+      throw new Error('The server returned no streaming response body.');
     }
 
     const reader = response.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-    let done = false;
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-    while (!done) {
-      const { value, done: readerDone } = await reader.read();
-      done = readerDone;
-      if (value) {
-        const chunk = decoder.decode(value, { stream: true });
-        onToken(chunk);
+    const processEvent = (event) => {
+      const data = event
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice(5).replace(/^ /, ''))
+        .join('\n');
+
+      if (data && data !== '[DONE]') {
+        onToken?.(data);
+      }
+    };
+
+    while (true) {
+      const { value, done } = await reader.read();
+
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      const events = buffer.split(/\r?\n\r?\n/);
+      buffer = events.pop() ?? '';
+
+      for (const event of events) {
+        processEvent(event);
       }
     }
-    if (onDone) onDone();
+
+    buffer += decoder.decode();
+
+    if (buffer.trim()) {
+      processEvent(buffer);
+    }
+
+    onDone?.();
   } catch (err) {
-    if (onError) onError(err);
-    else throw err;
+    if (onError) {
+      onError(err);
+    } else {
+      throw err;
+    }
   }
 }
+
 
 /**
  * 8. Semantic Similarity Search

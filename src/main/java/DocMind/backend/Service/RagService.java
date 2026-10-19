@@ -31,25 +31,32 @@ public class RagService {
     //to ask anything related to the Documents...
     public ChatResponseDTO askQuestion(ChatRequestDTO request){
         long startTime = System.currentTimeMillis();
+
+        long retrievalStart = System.currentTimeMillis();
         List<Document> documentList =  retrieveRelevantDocuments(
                 request.getQuestion(),
                 request.getDocumentId(),
                 request.getTopK(),
                 request.getMinSimilarity()
         );
-
+        long retrievalTime = System.currentTimeMillis() - retrievalStart;
         List<CitationDTO> citationList = documentList.stream()
                 .map(this::mapToCitation)
                 .toList();
 
         String contextText = buildeContextString(documentList);
         String prompt = buildPrompt(request.getQuestion() , contextText);
+        long generationStart = System.currentTimeMillis();
         String answer = this.chatClient.prompt()
                 .user(prompt)
                 .call()
                 .content();
-
+        long generationTime = System.currentTimeMillis() - generationStart;
         long responseTime = System.currentTimeMillis() - startTime;
+
+        logger.info("RAG retrieval time: {} ms", retrievalTime);
+        logger.info("Gemini generation time: {} ms", generationTime);
+        logger.info("Total response time: {} ms", responseTime);
 
         return ChatResponseDTO.builder()
                 .answer(answer)
@@ -172,33 +179,56 @@ public class RagService {
                 .build();
     }
 
-    private List<Document> retrieveRelevantDocuments(@NotBlank String query, UUID documentId, Integer topK, Double similaritySearch) {
-        int effectiveTopK = (topK != null && topK > 0) ? topK : appProperties.getRag().getTopK();
-        Double effectiveSearch = (similaritySearch!=null) ? similaritySearch : appProperties.getRag().getSimilarityThreshold();
+    private List<Document> retrieveRelevantDocuments(
+            @NotBlank String query,
+            UUID documentId,
+            Integer topK,
+            Double similaritySearch) {
+
+        int effectiveTopK =
+                (topK != null && topK > 0)
+                        ? topK
+                        : appProperties.getRag().getTopK();
+
+        double effectiveThreshold =
+                (similaritySearch != null)
+                        ? similaritySearch
+                        : appProperties.getRag().getSimilarityThreshold();
+
         SearchRequest.Builder searchRequestBuilder = SearchRequest.builder()
                 .query(query)
                 .topK(effectiveTopK);
 
-        if(effectiveSearch > 0.0){
-            SearchRequest.builder().similarityThreshold(effectiveSearch);
+        if (effectiveThreshold > 0.0) {
+            searchRequestBuilder.similarityThreshold(effectiveThreshold);
         }
 
-        if(documentId != null){
-            FilterExpressionBuilder b = new FilterExpressionBuilder();
-            searchRequestBuilder.filterExpression(b.eq("documentId" , documentId.toString()).build());
+        if (documentId != null) {
+            FilterExpressionBuilder builder = new FilterExpressionBuilder();
+
+            searchRequestBuilder.filterExpression(
+                    builder.eq("documentId", documentId.toString()).build()
+            );
         }
 
-        try{
+        try {
+            List<Document> documents = vectorStore.similaritySearch(
+                    searchRequestBuilder.build()
+            );
 
-            List<Document> similarity = vectorStore.similaritySearch(effectiveSearch.toString());
-            logger.info("Retrieved {} chunks for Query : '{}' (Scoped Docid : {})" , similarity.size() , query , documentId);
-            return similarity;
+            logger.info(
+                    "Retrieved {} chunks for query '{}' (Scoped Docid: {})",
+                    documents.size(),
+                    query,
+                    documentId
+            );
+
+            return documents;
 
         } catch (Exception e) {
-            logger.error("Similarity search failed for query : {}" , query , e);
-            return Collections.emptyList();
+            logger.error("Similarity search failed for query: {}", query, e);
+            throw new IllegalStateException("Document retrieval failed", e);
         }
-
     }
 
 }

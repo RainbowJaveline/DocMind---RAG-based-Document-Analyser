@@ -34,7 +34,7 @@ public class AppProperties {
     @AllArgsConstructor
     @NoArgsConstructor
     public static class CorsProperties{
-        private String allowedOrigin="*";
+        private String allowedOrigin="http://localhost:3000/";
         private String allowedMethods="GET,POST,PUT,DELETE";
         private String allowedHeaders="*";
     }

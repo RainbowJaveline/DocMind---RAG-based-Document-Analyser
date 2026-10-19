@@ -1,5 +1,6 @@
 package DocMind.backend.Service;
 
+import DocMind.backend.DTO.DocumentChunkDTO;
 import DocMind.backend.DTO.DocumentResponseDTO;
 import DocMind.backend.Entity.DocumentMetadata;
 import DocMind.backend.Entity.DocumentStatus;
@@ -20,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RequiredArgsConstructor
@@ -105,11 +107,13 @@ public class DocumentService {
 
     public DocumentResponseDTO getDocumentById(UUID id) {
         DocumentMetadata documentId = repo.findById(id).orElseThrow(()->new ResourceNotFoundException("Cannot Find the File"));
+        List<DocumentChunkDTO> chunks = getDocumentChunks(id);
         return DocumentResponseDTO.builder()
                 .id(documentId.getId())
                 .status(documentId.getStatus())
                 .fileSize(documentId.getSize())
                 .chunkCreated(documentId.getTotalChunks())
+                .chunks(chunks)
                 .fileName(documentId.getFilename())
                 .build();
     }
@@ -201,5 +205,71 @@ public class DocumentService {
             );
             throw e;
         }
+    }
+
+
+    public List<DocumentChunkDTO> getDocumentChunks(UUID documentId) {
+
+        String sql = """
+        SELECT
+            id,
+            content,
+            metadata
+        FROM vector_store_gemini
+        WHERE metadata->>'documentId' = ?
+        ORDER BY (metadata->>'chunkIndex')::INTEGER
+        """;
+
+        return jdbcTemplate.query(sql, (rs, rowNum) -> {
+
+            String metadataJson = rs.getString("metadata");
+            Map<String, Object> metadata = new java.util.HashMap<>();
+
+            if (metadataJson != null && !metadataJson.isBlank()) {
+                try {
+                    metadata = new com.fasterxml.jackson.databind.ObjectMapper()
+                            .readValue(
+                                    metadataJson,
+                                    new com.fasterxml.jackson.core.type.TypeReference<
+                                            Map<String, Object>>() {}
+                            );
+                } catch (Exception e) {
+                    logger.warn("Could not parse chunk metadata", e);
+                }
+            }
+
+            Object chunkIndexValue = metadata.get("chunkIndex");
+            Integer chunkIndex = chunkIndexValue instanceof Number
+                    ? ((Number) chunkIndexValue).intValue()
+                    : null;
+
+            Object pageValue = metadata.get("page_number");
+            if (pageValue == null) {
+                pageValue = metadata.get("pageNumber");
+            }
+            if (pageValue == null) {
+                pageValue = metadata.get("Page Number : ");
+            }
+
+            Integer pageNumber = null;
+            if (pageValue instanceof Number) {
+                pageNumber = ((Number) pageValue).intValue();
+            } else if (pageValue != null) {
+                try {
+                    pageNumber = Integer.parseInt(pageValue.toString());
+                } catch (NumberFormatException ignored) {
+                    // Leave page number unavailable if the value is not numeric.
+                }
+            }
+
+            return DocumentChunkDTO.builder()
+                    .id(rs.getString("id"))
+                    .chunkIndex(chunkIndex)
+                    .pageNumber(pageNumber)
+                    .snippet(rs.getString("content"))
+                    .metadata(metadata)
+                    .build();
+
+        }, documentId.toString());
     }
 }
