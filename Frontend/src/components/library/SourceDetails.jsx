@@ -156,7 +156,7 @@ export default function SourceDetails() {
             PAGES
           </span>
           <span className={`text-sm font-medium mt-1 block ${isDark ? 'text-ink-100' : 'text-parchment-900'}`}>
-            {doc.totalPages || 6}
+            {doc.totalPages ?? '—'}
           </span>
         </div>
 
@@ -165,7 +165,7 @@ export default function SourceDetails() {
             INDEXED CHUNKS
           </span>
           <span className={`text-sm font-medium mt-1 block ${isDark ? 'text-ink-100' : 'text-parchment-900'}`}>
-            {doc.chunkCreated || chunks.length || 0}
+            {doc.chunkCreated ?? chunks.length}
           </span>
         </div>
       </div>

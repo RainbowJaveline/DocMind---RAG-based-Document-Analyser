@@ -67,6 +67,7 @@ public class DocumentService {
                 .fileSize(saveDocumentMetaData.getSize())
                 .chunkCreated(chunksCreated)
                 .status(saveDocumentMetaData.getStatus())
+                .totalPages(saveDocumentMetaData.getTotalPages())
                 .message(
                         saveDocumentMetaData.getStatus() == DocumentStatus.INDEXED
                                 ? "Document successfully processed and indexed"
@@ -98,6 +99,7 @@ public class DocumentService {
                              .fileSize(docs.getSize())
                              .chunkCreated(docs.getTotalChunks())
                              .fileName(docs.getFilename())
+                             .totalPages(docs.getTotalPages())
                              .message("File Fetched Successfully from the Database")
                              .build()
              );
@@ -113,6 +115,7 @@ public class DocumentService {
                 .status(documentId.getStatus())
                 .fileSize(documentId.getSize())
                 .chunkCreated(documentId.getTotalChunks())
+                .totalPages(documentId.getTotalPages())
                 .chunks(chunks)
                 .fileName(documentId.getFilename())
                 .build();

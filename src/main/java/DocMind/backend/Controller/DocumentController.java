@@ -1,6 +1,7 @@
 package DocMind.backend.Controller;
 
 import DocMind.backend.DTO.ApiResponse;
+import DocMind.backend.DTO.DocumentChunkDTO;
 import DocMind.backend.DTO.DocumentResponseDTO;
 import DocMind.backend.Entity.DocumentMetadata;
 import DocMind.backend.Repository.DocumentMetaDataRepo;
@@ -121,6 +122,22 @@ public class DocumentController {
                         .success(true)
                         .timestamp(LocalDateTime.now())
                         .data(deleteDocData)
+                        .build()
+        );
+    }
+
+
+    @GetMapping("/{id}/chunks")
+    public ResponseEntity<ApiResponse<List<DocumentChunkDTO>>> getDocumentChunks(
+            @PathVariable UUID id) {
+
+        List<DocumentChunkDTO> chunks = documentService.getDocumentChunks(id);
+
+        return ResponseEntity.ok(
+                ApiResponse.<List<DocumentChunkDTO>>builder()
+                        .success(true)
+                        .message("Document chunks fetched successfully")
+                        .data(chunks)
                         .build()
         );
     }

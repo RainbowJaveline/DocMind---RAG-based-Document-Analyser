@@ -19,6 +19,7 @@ public class DocumentResponseDTO {
     private Long fileSize;
     private DocumentStatus status;
     private Integer chunkCreated;
+    private Integer totalPages;
     private String message;
     @Builder.Default
     private List<DocumentChunkDTO> chunks = List.of();

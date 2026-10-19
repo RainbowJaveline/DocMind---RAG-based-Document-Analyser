@@ -216,6 +216,29 @@ public class RagService {
                     searchRequestBuilder.build()
             );
 
+
+            for (Document document : documents) {
+                Map<String, Object> metadata = document.getMetadata();
+
+                logger.info(
+                        "Retrieved chunk: id={}, documentId={}, chunkIndex={}",
+                        document.getId(),
+                        metadata.get("documentId"),
+                        metadata.get("chunkIndex")
+                );
+
+                if (documentId != null &&
+                        !documentId.toString().equals(
+                                String.valueOf(metadata.get("documentId")))) {
+                    logger.error(
+                            "Document scope mismatch: expected={}, actual={}",
+                            documentId,
+                            metadata.get("documentId")
+                    );
+                }
+            }
+
+
             logger.info(
                     "Retrieved {} chunks for query '{}' (Scoped Docid: {})",
                     documents.size(),

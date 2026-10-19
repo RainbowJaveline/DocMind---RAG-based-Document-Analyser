@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { listDocuments, deleteDocument, checkBackendHealth } from '../api/client';
+import {  listDocuments,
+           getDocumentById,
+           deleteDocument,
+           checkBackendHealth} from '../api/client';
 import { INITIAL_MOCK_DOCUMENTS } from '../api/mockData';
 
 const DocumentContext = createContext();
@@ -91,10 +94,34 @@ export function DocumentProvider({ children }) {
   };
 
   // Action: Navigate to Source Details
-  const viewSourceDetails = (doc) => {
-    setSelectedDocument(doc);
-    setActiveTab('source-details');
-  };
+
+const viewSourceDetails = async (doc) => {
+  // Display the selected document immediately while details load.
+  setSelectedDocument(doc);
+  setActiveTab('source-details');
+
+  // Mock documents or an unavailable backend cannot be fetched from the API.
+  if (!backendConnected || !doc?.id) {
+    return;
+  }
+
+  try {
+    const response = await getDocumentById(doc.id);
+
+    if (response?.success && response?.data) {
+      // The detail endpoint returns document metadata and indexed chunks.
+      setSelectedDocument(response.data);
+    } else {
+      console.warn(
+        'Document details response did not contain data:',
+        response
+      );
+    }
+  } catch (err) {
+    console.error('Failed to fetch document details and chunks:', err);
+  }
+};
+
 
   // Action: Ask about this document in Chat
   const askAboutDocument = (doc) => {
