@@ -49,6 +49,8 @@ public class DocumentController {
                                 .id(documentResponseDTO.getId())
                                 .fileName(documentResponseDTO.getFileName())
                                 .fileSize(documentResponseDTO.getFileSize())
+                                .status(documentResponseDTO.getStatus())
+                                .message(documentResponseDTO.getMessage())
                                 .chunkCreated(documentResponseDTO.getChunkCreated())
                                 .build())
                         .build());
@@ -68,6 +70,7 @@ public class DocumentController {
                        ApiResponse.<List<DocumentResponseDTO>>
                                builder()
                                .message("Uploaded Successfully")
+                               .data(responseDTOS)
                                .success(true)
                                .build()
                );
@@ -83,6 +86,8 @@ public class DocumentController {
      return ResponseEntity.status(HttpStatus.OK)
              .body(
                      ApiResponse.<List<DocumentResponseDTO>>builder()
+                             .data(docs)
+                             .timestamp(LocalDateTime.now())
                              .build()
              );
     }
@@ -107,14 +112,15 @@ public class DocumentController {
             summary = "Deleting document by ID"
     )
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> DeleteById(@PathVariable UUID id ){
-        documentService.deleteById(id);
+    public ResponseEntity<ApiResponse<DocumentResponseDTO>> DeleteById(@PathVariable UUID id ){
+        //DocumentResponseDTO deleteDocData = documentService.getDocumentById(id);
+        DocumentResponseDTO deleteDocData = documentService.deleteById(id);
         return ResponseEntity.ok(
-                ApiResponse.<Void>builder()
+                ApiResponse.<DocumentResponseDTO>builder()
                         .message("Document Deleted Successfully")
                         .success(true)
                         .timestamp(LocalDateTime.now())
-                        .data(null)
+                        .data(deleteDocData)
                         .build()
         );
     }

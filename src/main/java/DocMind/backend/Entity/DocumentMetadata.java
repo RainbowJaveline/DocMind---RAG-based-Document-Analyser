@@ -27,8 +27,8 @@ public class DocumentMetadata {
     private Long size;
     private Integer totalPages;
     private Integer totalChunks;
-    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
     private DocumentStatus status;
     @Column(length = 1000)
     private String errorMessage;

@@ -3,6 +3,7 @@ package DocMind.backend.Service;
 import DocMind.backend.DTO.DocumentResponseDTO;
 import DocMind.backend.Entity.DocumentMetadata;
 import DocMind.backend.Entity.DocumentStatus;
+import DocMind.backend.Exception.DocumentProcessingException;
 import DocMind.backend.Exception.ResourceNotFoundException;
 import DocMind.backend.Repository.DocumentMetaDataRepo;
 import lombok.RequiredArgsConstructor;
@@ -47,19 +48,17 @@ public class DocumentService {
 
         //save the MetaData for the Document
         DocumentMetadata saveDocumentMetaData =  repo.save(documentMetadata);
-
-        //parse the file
-        List<Document> parseDocument = parserService.parse(file);
-        //ingest and return the number of chunks
-        Integer chunksCreated = ingestionService.ingest(saveDocumentMetaData,parseDocument);
-
-        logger.info(
-                "Upload response: id={}, status={}, chunks={}",
-                saveDocumentMetaData.getId(),
-                saveDocumentMetaData.getStatus(),
-                saveDocumentMetaData.getTotalChunks()
-        );
-
+        List<Document> parseDocument = null;
+        Integer chunksCreated = 0;
+        try {
+            //parse the file
+            parseDocument = parserService.parse(file);
+            //ingest and return the number of chunks
+            chunksCreated = ingestionService.ingest(saveDocumentMetaData, parseDocument);
+        } catch (DocumentProcessingException e) {
+            repo.delete(documentMetadata);
+            throw e;
+        }
         return DocumentResponseDTO.builder()
                 .id(saveDocumentMetaData.getId())
                 .fileName(saveDocumentMetaData.getFilename())
@@ -116,29 +115,90 @@ public class DocumentService {
     }
 
     @Transactional
-    public void deleteById(UUID id) {
+    public DocumentResponseDTO deleteById(UUID id) {
+
+        logger.info("Deleting document ID: {}", id);
+
+        // 1. Fetch document metadata
+        DocumentResponseDTO docData = getDocumentById(id);
 
         DocumentMetadata documentMetadata = repo.findById(id)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Cannot find the file"));
+                        new ResourceNotFoundException(
+                                "Cannot find the file with ID: " + id
+                        )
+                );
 
-        String query = """
-            DELETE FROM vector_store_gemini
-            WHERE metadata->>'documentId' = ?
-            """;
+        logger.info("Document metadata ID: {}", documentMetadata.getId());
+        logger.info("Document filename: {}", documentMetadata.getFilename());
 
         try {
-            int deletedCount = jdbcTemplate.update(query, id.toString());
+            // 2. Count matching vector chunks using both metadata formats
+            String countQuery = """
+                SELECT COUNT(*)
+                FROM vector_store_gemini
+                WHERE metadata->>'documentId' = ?
+                   OR metadata->>'DocumentId : ' = ?
+                """;
 
-            logger.info("Deleted {} vectors for DocumentId: {}",
-                    deletedCount, id);
+            Integer matchingVectors = jdbcTemplate.queryForObject(
+                    countQuery,
+                    Integer.class,
+                    id.toString(),
+                    id.toString()
+            );
 
+            logger.info(
+                    "Matching vectors before deletion: {}",
+                    matchingVectors
+            );
+
+            // 3. Delete vector chunks
+            String deleteQuery = """
+                DELETE FROM vector_store_gemini
+                WHERE metadata->>'documentId' = ?
+                   OR metadata->>'DocumentId : ' = ?
+                """;
+
+            int deletedCount = jdbcTemplate.update(
+                    deleteQuery,
+                    id.toString(),
+                    id.toString()
+            );
+
+            logger.info(
+                    "Deleted {} vectors for DocumentId: {}",
+                    deletedCount,
+                    id
+            );
+
+            // 4. Prevent metadata deletion if existing vectors weren't deleted
+            if (matchingVectors != null && deletedCount != matchingVectors) {
+                throw new IllegalStateException(
+                        "Vector deletion mismatch for document " + id
+                                + ". Expected to delete " + matchingVectors
+                                + " vectors, but deleted " + deletedCount
+                );
+            }
+
+            // 5. Delete document metadata only after vector deletion succeeds
             repo.delete(documentMetadata);
 
-            logger.info("Deleted document metadata for DocumentId: {}", id);
+            logger.info(
+                    "Deleted document metadata for DocumentId: {}",
+                    id
+            );
+
+            // 6. Return response
+            docData.setStatus(DocumentStatus.DELETED);
+            return docData;
 
         } catch (DataAccessException e) {
-            logger.error("Database operation failed while deleting document: {}", id, e);
+            logger.error(
+                    "Database operation failed while deleting document: {}",
+                    id,
+                    e
+            );
             throw e;
         }
     }
